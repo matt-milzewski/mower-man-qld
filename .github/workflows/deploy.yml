@@ -16,6 +16,7 @@ env:
   ACM_CERTIFICATE_ARN: ${{ vars.ACM_CERTIFICATE_ARN || '' }}
   ORIGIN_BUCKET_NAME: ${{ vars.ORIGIN_BUCKET_NAME || '' }}
   ANCHOR_FORMS_API_BASE: ${{ vars.ANCHOR_FORMS_API_BASE || 'https://jp5by1qc4d.execute-api.ap-southeast-2.amazonaws.com' }}
+  CLOUDFRONT_ZONE_ID: Z2FDTNDATAQYW2
 
 jobs:
   deploy:
@@ -41,6 +42,75 @@ jobs:
       - name: Inject forms endpoint
         run: |
           sed -i "s#__ANCHOR_FORMS_API_BASE__#${ANCHOR_FORMS_API_BASE}#g" scripts.js
+
+      - name: Ensure CloudFront certificate
+        if: env.PRIMARY_DOMAIN_NAME != '' && env.ACM_CERTIFICATE_ARN == ''
+        run: |
+          DOMAIN="$PRIMARY_DOMAIN_NAME"
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+            --dns-name "${DOMAIN}." \
+            --query "HostedZones[?Name=='${DOMAIN}.'].Id | [0]" \
+            --output text | sed 's#/hostedzone/##')
+
+          if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "None" ]; then
+            echo "No Route53 hosted zone found for ${DOMAIN}."
+            exit 1
+          fi
+
+          CERT_ARN=$(aws acm list-certificates \
+            --region us-east-1 \
+            --certificate-statuses ISSUED PENDING_VALIDATION \
+            --query "CertificateSummaryList[?DomainName=='${DOMAIN}'].CertificateArn | [0]" \
+            --output text)
+
+          if [ -z "$CERT_ARN" ] || [ "$CERT_ARN" = "None" ]; then
+            CERT_ARN=$(aws acm request-certificate \
+              --region us-east-1 \
+              --domain-name "$DOMAIN" \
+              --validation-method DNS \
+              --idempotency-token mowermanqld \
+              --query "CertificateArn" \
+              --output text)
+          fi
+
+          for i in {1..12}; do
+            aws acm describe-certificate \
+              --region us-east-1 \
+              --certificate-arn "$CERT_ARN" \
+              --query "Certificate.DomainValidationOptions[?ResourceRecord.Name!=null].ResourceRecord" \
+              --output json > validation-records.json
+            RECORD_COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('validation-records.json','utf8')).length)")
+            if [ "$RECORD_COUNT" -gt 0 ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          node <<'NODE'
+          const fs = require("fs");
+          const records = JSON.parse(fs.readFileSync("validation-records.json", "utf8"));
+          fs.writeFileSync("validation-change-batch.json", JSON.stringify({
+            Changes: records.map((record) => ({
+              Action: "UPSERT",
+              ResourceRecordSet: {
+                Name: record.Name,
+                Type: record.Type,
+                TTL: 300,
+                ResourceRecords: [{ Value: record.Value }]
+              }
+            }))
+          }, null, 2));
+          NODE
+
+          aws route53 change-resource-record-sets \
+            --hosted-zone-id "$ZONE_ID" \
+            --change-batch file://validation-change-batch.json
+
+          aws acm wait certificate-validated \
+            --region us-east-1 \
+            --certificate-arn "$CERT_ARN"
+
+          echo "ACM_CERTIFICATE_ARN=$CERT_ARN" >> "$GITHUB_ENV"
 
       - name: Deploy infrastructure
         run: |
@@ -81,6 +151,42 @@ jobs:
       - name: Invalidate CloudFront
         run: |
           aws cloudfront create-invalidation --distribution-id "${{ steps.stack.outputs.distribution }}" --paths "/*"
+
+      - name: Point domain at CloudFront
+        if: env.PRIMARY_DOMAIN_NAME != ''
+        run: |
+          export DOMAIN="$PRIMARY_DOMAIN_NAME"
+          export CLOUDFRONT_DOMAIN="${{ steps.stack.outputs.url }}"
+          export CLOUDFRONT_DOMAIN="${CLOUDFRONT_DOMAIN#https://}"
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+            --dns-name "${DOMAIN}." \
+            --query "HostedZones[?Name=='${DOMAIN}.'].Id | [0]" \
+            --output text | sed 's#/hostedzone/##')
+
+          node <<'NODE'
+          const fs = require("fs");
+          const domain = process.env.DOMAIN;
+          const target = process.env.CLOUDFRONT_DOMAIN;
+          const cloudFrontZoneId = process.env.CLOUDFRONT_ZONE_ID;
+          fs.writeFileSync("alias-change-batch.json", JSON.stringify({
+            Changes: ["A", "AAAA"].map((type) => ({
+              Action: "UPSERT",
+              ResourceRecordSet: {
+                Name: `${domain}.`,
+                Type: type,
+                AliasTarget: {
+                  HostedZoneId: cloudFrontZoneId,
+                  DNSName: target,
+                  EvaluateTargetHealth: false
+                }
+              }
+            }))
+          }, null, 2));
+          NODE
+
+          aws route53 change-resource-record-sets \
+            --hosted-zone-id "$ZONE_ID" \
+            --change-batch file://alias-change-batch.json
 
       - name: Deployment summary
         run: |
