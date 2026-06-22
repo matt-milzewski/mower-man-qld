@@ -28,7 +28,7 @@ The shared forms backend needs this site route:
 {
   "siteId": "mower-man-qld",
   "name": "Mower Man QLD",
-  "recipientEmail": "admin@mowermanqld.com.au",
+  "recipientEmail": "info@anchorwebco.com.au",
   "allowedOrigins": [
     "https://mowermanqld.com.au",
     "https://www.mowermanqld.com.au"
