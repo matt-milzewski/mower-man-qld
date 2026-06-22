@@ -129,9 +129,11 @@ jobs:
         run: |
           BUCKET=$(aws cloudformation describe-stacks --region "$AWS_REGION" --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='OriginBucketName'].OutputValue" --output text)
           DIST=$(aws cloudformation describe-stacks --region "$AWS_REGION" --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" --output text)
+          CF_DOMAIN=$(aws cloudformation describe-stacks --region "$AWS_REGION" --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDomainName'].OutputValue" --output text)
           URL=$(aws cloudformation describe-stacks --region "$AWS_REGION" --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='SiteUrl'].OutputValue" --output text)
           echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
           echo "distribution=$DIST" >> "$GITHUB_OUTPUT"
+          echo "cloudfront_domain=$CF_DOMAIN" >> "$GITHUB_OUTPUT"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Sync files to S3
@@ -156,8 +158,7 @@ jobs:
         if: env.PRIMARY_DOMAIN_NAME != ''
         run: |
           export DOMAIN="$PRIMARY_DOMAIN_NAME"
-          export CLOUDFRONT_DOMAIN="${{ steps.stack.outputs.url }}"
-          export CLOUDFRONT_DOMAIN="${CLOUDFRONT_DOMAIN#https://}"
+          export CLOUDFRONT_DOMAIN="${{ steps.stack.outputs.cloudfront_domain }}"
           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
             --dns-name "${DOMAIN}." \
             --query "HostedZones[?Name=='${DOMAIN}.'].Id | [0]" \
