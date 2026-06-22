@@ -1,0 +1,9 @@
+{
+  "name": "mower-man-qld",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static website for Mower Man QLD.",
+  "scripts": {
+    "test": "node scripts/validate-site.js"
+  }
+}
