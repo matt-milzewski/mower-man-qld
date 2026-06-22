@@ -28,12 +28,12 @@ The shared forms backend needs this site route:
 {
   "siteId": "mower-man-qld",
   "name": "Mower Man QLD",
-  "recipientEmail": "Admin@maryboroughmowerman.com.au",
+  "recipientEmail": "admin@mowermanqld.com.au",
   "allowedOrigins": [
     "https://mowermanqld.com.au",
     "https://www.mowermanqld.com.au"
   ],
-  "requiredFields": ["name", "email", "phone", "suburb", "service", "message"],
+  "requiredFields": ["name", "email", "phone", "address", "regular_service", "services"],
   "honeypotFields": ["company", "_gotcha", "website"],
   "replyToField": "email",
   "subjectPrefix": "[Mower Man QLD]",
