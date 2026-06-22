@@ -18,6 +18,7 @@
   const status = form.querySelector("[data-form-status]");
   const submit = form.querySelector('[type="submit"]');
   const apiBase = "__ANCHOR_FORMS_API_BASE__";
+  const placeholderApiBase = ["__", "ANCHOR_FORMS_API_BASE", "__"].join("");
   const endpoint = `${apiBase.replace(/\/$/, "")}/api/forms/mower-man-qld`;
 
   function setFieldError(field, message) {
@@ -88,7 +89,7 @@
       return;
     }
 
-    if (!apiBase || apiBase.includes("__ANCHOR_FORMS_API_BASE__")) {
+    if (!apiBase || apiBase === placeholderApiBase) {
       status.textContent = "Online enquiries are being connected. Please call 0473 213 448 or email admin@mowermanqld.com.au.";
       status.className = "form-status error";
       return;
