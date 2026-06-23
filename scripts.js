@@ -9,6 +9,18 @@
     });
   }
 
+  document.querySelectorAll("[data-before-after]").forEach((comparison) => {
+    const range = comparison.querySelector(".comparison-range");
+    if (!range) return;
+
+    const updateComparison = () => {
+      comparison.style.setProperty("--position", `${range.value}%`);
+    };
+
+    updateComparison();
+    range.addEventListener("input", updateComparison);
+  });
+
   const form = document.querySelector("[data-contact-form]");
   if (!form) return;
 

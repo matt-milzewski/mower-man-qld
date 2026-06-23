@@ -21,7 +21,20 @@ for (const file of htmlFiles) {
   if (!html.includes("/scripts.js")) failures.push(`${file} does not load scripts.js`);
 }
 
-for (const asset of ["images/hero-lawn.webp", "images/og-hero.jpg", "images/favicon-mower.png"]) {
+const requiredAssets = [
+  "images/hero-lawn.webp",
+  "images/og-hero.jpg",
+  "images/favicon-mower.png",
+  "images/fence-line-weed-clearing-before.webp",
+  "images/fence-line-weed-clearing-after.webp",
+  "images/pool-surround-pressure-cleaning-before.webp",
+  "images/pool-surround-pressure-cleaning-after.webp",
+  "images/side-path-pressure-cleaning-before.webp",
+  "images/side-path-pressure-cleaning-after.webp",
+  "images/residential-complex-driveway-lawn-finished.webp"
+];
+
+for (const asset of requiredAssets) {
   if (!existsSync(join(root, asset))) failures.push(`Missing ${asset}`);
 }
 
